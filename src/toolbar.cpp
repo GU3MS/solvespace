@@ -8,7 +8,7 @@
 
 //
 // edit: configured toolbar for doggett's purposes
-//
+// test
 //
 
 #include "solvespace.h"
