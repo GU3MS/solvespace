@@ -144,7 +144,7 @@ const GraphicsWindow::MenuEntry GraphicsWindow::menu[] = {
 { 1, NULL, Command::SPLIT_CURVES,   'I',     TN, mReq  },
 
 { 0, NULL,                  Command::NONE,             0,       TN, NULL  },
-{ 1, NULL,        Command::DISTANCE_DIA,     'D',     TN, mCon  },
+{ 1, NULL,        Command::SCALE,     'D',     TN, mCon  },
 { 1, NULL,        Command::REF_DISTANCE,     S|'D',   TN, mCon  },
 { 1, NULL,                      Command::ANGLE,            'N',     TN, mCon  },
 { 1, NULL,            Command::REF_ANGLE,        S|'N',   TN, mCon  },
