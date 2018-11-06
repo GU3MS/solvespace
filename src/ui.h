@@ -187,7 +187,7 @@ enum class Command : uint32_t {
     GROUP_LINK,
     GROUP_RECENT,
     // Constrain
-    DISTANCE_DIA,
+    SCALE,
     REF_DISTANCE,
     ANGLE,
     REF_ANGLE,
