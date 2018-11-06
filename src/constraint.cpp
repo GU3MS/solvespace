@@ -127,7 +127,7 @@ void Constraint::MenuConstrain(Command id) {
 
     switch(id) {
         case Command::DISTANCE_DIA: {
-            
+            system("scale.py\n");
         }
         case Command::REF_DISTANCE: {
             if(gs.points == 2 && gs.n == 2) {
