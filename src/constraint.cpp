@@ -126,7 +126,7 @@ void Constraint::MenuConstrain(Command id) {
     auto const &gs = SS.GW.gs;
 
     switch(id) {
-        case Command::DISTANCE_DIA: {
+        case Command::SCALE: {
             system("scale.py\n");
         }
         case Command::REF_DISTANCE: {
