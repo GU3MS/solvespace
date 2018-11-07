@@ -15,6 +15,7 @@
 // line 613, labels
 
 #include "solvespace.h"
+#include "PyPanlize.h"
 
 #define mView (&GraphicsWindow::MenuView)
 #define mEdit (&GraphicsWindow::MenuEdit)
@@ -526,10 +527,7 @@ void GraphicsWindow::MenuView(Command id) {
             break;
 
         case Command::ONTO_WORKPLANE:
-            if(SS.GW.LockedInWorkplane()) {
-                SS.GW.AnimateOntoWorkplane();
-                SS.ScheduleShowTW();
-                break;
+            Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", 0.1);
             }  // if not in 2d mode fall through and use ORTHO logic
         case Command::NEAREST_ORTHO:
         case Command::NEAREST_ISO: {
