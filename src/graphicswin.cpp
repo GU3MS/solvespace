@@ -526,10 +526,10 @@ void GraphicsWindow::MenuView(Command id) {
             	string DPI;
 	        ifstream infile;
 	        infile.open ("dpi.txt");
-	        getline(infile, DPI); // Saves the line in STRING.
+	        getline(infile, DPI); // Saves the line in DPI.
 	        infile.close();
-            	double DPI_value = std::stod(DPI);
-            	
+            	//double DPI_value = std::stod(DPI);
+            	Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", 0.1);
 		
 		break;
 	}
