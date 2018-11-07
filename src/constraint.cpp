@@ -160,15 +160,6 @@ void Constraint::MenuConstrain(Command id) {
                 c.type = Type::DIAMETER;
                 c.entityA = gs.entity[0];
             } else {
-                Error(_("Bad selection for distance / diameter constraint. This "
-                        "constraint can apply to:\n\n"
-                        "    * two points (distance between points)\n"
-                        "    * a line segment (length)\n"
-                        "    * two points and a line segment or normal (projected distance)\n"
-                        "    * a workplane and a point (minimum distance)\n"
-                        "    * a line segment and a point (minimum distance)\n"
-                        "    * a plane face and a point (minimum distance)\n"
-                        "    * a circle or an arc (diameter)\n"));
                 return;
             }
             if(c.type == Type::PT_PT_DISTANCE || c.type == Type::PROJ_PT_DISTANCE) {
