@@ -523,11 +523,6 @@ void GraphicsWindow::MenuView(Command id) {
             break;
 
         case Command::ONTO_WORKPLANE: {
-		if(SS.GW.LockedInWorkplane()) {
-               		SS.GW.AnimateOntoWorkplane();
-                	SS.ScheduleShowTW();
-                	break;
-		}
             	string DPI;
 	        ifstream infile;
 	        infile.open ("dpi.txt");
