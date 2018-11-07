@@ -529,7 +529,8 @@ void GraphicsWindow::MenuView(Command id) {
 	        getline(infile, DPI); // Saves the line in STRING.
 	        infile.close();
             	double DPI_value = std::stod(DPI);
-            	Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", DPI_value);
+            	
+		
 		break;
 	}
         case Command::NEAREST_ORTHO:
