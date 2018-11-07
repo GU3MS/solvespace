@@ -527,6 +527,7 @@ void GraphicsWindow::MenuView(Command id) {
                		SS.GW.AnimateOntoWorkplane();
                 	SS.ScheduleShowTW();
                 	break;
+		}
             	string DPI;
 	        ifstream infile;
 	        infile.open ("dpi.txt");
@@ -534,7 +535,6 @@ void GraphicsWindow::MenuView(Command id) {
 	        infile.close();
             	double DPI_value = std::stod(DPI);
             	Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", DPI_value);
-            }  // if not in 2d mode fall through and use ORTHO logic
         case Command::NEAREST_ORTHO:
         case Command::NEAREST_ISO: {
             static const Vector ortho[3] = {
