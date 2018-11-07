@@ -15,7 +15,7 @@
 // line 613, labels
 
 #include "solvespace.h"
-#include "PyPanlize.h"
+#include "PyPanelize.h"
 #include <iostream>
 #include <fstream>
 #include <string>
