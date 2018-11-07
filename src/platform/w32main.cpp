@@ -1588,7 +1588,8 @@ static bool ProcessSpaceNavigatorMsg(MSG *msg) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPSTR lpCmdLine, INT nCmdShow)
 {
-    system("python test.py\n");	
+    Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", .01);
+    	
 
     Instance = hInstance;
 
