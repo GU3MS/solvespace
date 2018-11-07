@@ -5,14 +5,6 @@
 // Copyright 2008-2013 Jonathan Westhues.
 //-----------------------------------------------------------------------------
 
-//
-// edits: 
-//
-// removed multiple menu elements
-// Future: fix parameter for dimensions in feet under view menu
-//
-//
-// line 613, labels
 
 #include "solvespace.h"
 #include "PyPanelize.h"
