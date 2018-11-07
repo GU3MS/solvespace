@@ -4,8 +4,8 @@
 // Author: Akash Kothari  <akothar3@ncsu.edu>
 //-------------------------------------------------------//
 
-#ifndef PY_PANALIZE__H__
-#define PY_PANALIZE__H__
+#ifndef PY_PANELIZE__H__
+#define PY_PANELIZE__H__
 
 #include <iostream>
 #include <vector>
