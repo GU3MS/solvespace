@@ -522,7 +522,7 @@ void GraphicsWindow::MenuView(Command id) {
             InvalidateGraphics();
             break;
 
-        case Command::ONTO_WORKPLANE:
+        case Command::ONTO_WORKPLANE: {
 		if(SS.GW.LockedInWorkplane()) {
                		SS.GW.AnimateOntoWorkplane();
                 	SS.ScheduleShowTW();
@@ -535,6 +535,8 @@ void GraphicsWindow::MenuView(Command id) {
 	        infile.close();
             	double DPI_value = std::stod(DPI);
             	Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", DPI_value);
+		break;
+	}
         case Command::NEAREST_ORTHO:
         case Command::NEAREST_ISO: {
             static const Vector ortho[3] = {
