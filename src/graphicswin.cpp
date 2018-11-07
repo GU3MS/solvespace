@@ -16,6 +16,10 @@
 
 #include "solvespace.h"
 #include "PyPanlize.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+using namespace std;
 
 #define mView (&GraphicsWindow::MenuView)
 #define mEdit (&GraphicsWindow::MenuEdit)
@@ -527,7 +531,16 @@ void GraphicsWindow::MenuView(Command id) {
             break;
 
         case Command::ONTO_WORKPLANE:
-            Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", 0.1);
+            string DPI;
+	        ifstream infile;
+	        infile.open ("dpi.txt");
+            while(!infile.eof) // To get you all the lines.
+            {
+	            getline(infile, DPI); // Saves the line in STRING.
+            }
+	        infile.close();
+            double DPI_value = std::stod(DPI);
+            Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", DPI_value);
             }  // if not in 2d mode fall through and use ORTHO logic
         case Command::NEAREST_ORTHO:
         case Command::NEAREST_ISO: {
