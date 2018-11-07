@@ -1588,7 +1588,7 @@ static bool ProcessSpaceNavigatorMsg(MSG *msg) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPSTR lpCmdLine, INT nCmdShow)
 {
-    Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", .01);
+    Panelization::Processor("sample.png", "panel.csv", "Inventory.csv", 0.1);
     	
 
     Instance = hInstance;
