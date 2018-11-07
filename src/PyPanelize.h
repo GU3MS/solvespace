@@ -4,8 +4,8 @@
 // Author: Akash Kothari  <akothar3@ncsu.edu>
 //-------------------------------------------------------//
 
-#ifndef PANELIZE__H__
-#define PANELIZE__H__
+#ifndef __PY_PANELIZATION__H__
+#define __PY_PANELIZATION__H__
 
 #include <iostream>
 #include <vector>
@@ -227,7 +227,15 @@ private:
 		rectSides.push_back(side);
 	}
 	
-	std::vector<double> &getRectSides() {
+	void setRectSides(std::vector<double> rectSidesVect) {
+		rectSides = rectSidesVect;
+	}
+	
+	std::vector<double> getRectSidesVector() const {
+		return rectSides;
+	}
+	
+	const std::vector<double> &getRectSides() const {
 		return rectSides;
 	}
 	
@@ -347,14 +355,24 @@ class Processor {
 private:
 // Wall list
 	std::vector<Wall *> wallList;
+	
+// Wall List based on panel inventory info
+	std::vector<Wall *> wallInvList;
 
 	struct PanelInfo {
 	private:
 	// Panel Dimensions
 		double width = 0;
 		double height = 0;
+		uint32_t numPanels = 0;
 
-		PanelInfo(double panelWidth = 0, double panelHeight = 0) {
+		explicit PanelInfo(double panelWidth = 0, double panelHeight = 0) {
+			width = panelWidth;
+			height = panelHeight;
+		}
+		
+		explicit PanelInfo(uint32_t num = 0, double panelWidth = 0, double panelHeight = 0) {
+			numPanels = num;
 			width = panelWidth;
 			height = panelHeight;
 		}
@@ -364,12 +382,17 @@ private:
 
 // List of panels
 	std::vector<PanelInfo> panelList;
+	
+// List of panels in inventory
+	std::vector<PanelInfo> panelInvList;
 
 public:
 	Processor(const std::string &imageName,
-			  const std::string &panelListFileName, double scale, 
+			  const std::string &availablePanelListFileName, 
+			  const std::string &inventoryPanelListFileName, double scale, 
 			  bool cornerSelection = false, double noiseThreshold = 5,
-			  const std::string &outputFileName = std::string()) {
+			  const std::string &wishListFileName = std::string(),
+			  const std::string &inventoryListFileName = std::string()) {
 		std::cout << "PROCESSOR\n";
 	// Invoke the python script to get the wall data in a file
 		std::string outputFile = imageName + ".csv";
@@ -379,22 +402,43 @@ public:
 		readOutputFile(outputFile, cornerSelection);
 		
 	// Get the list of available panels
-		getPanels(panelListFileName);
+		getPanels(panelList, availablePanelListFileName);
+		getPanels(panelInvList, inventoryPanelListFileName, true);
 		
 	// Filter out the noise
 		std::cout << "FILTERING NOISE\n";
 		filterNoise(scale, noiseThreshold, cornerSelection);
+		
+	// The inventory-based wall info is same as that for wish list at this stage
+		std::vector<Wall *>::iterator wall = wallList.begin();
+		while(wall !=  wallList.end()) {
+			Wall *new_wall = allocateWall((*wall)->getH(), (*wall)->getS(), 
+															(*wall)->getV());
+			new_wall->setLength((*wall)->getLength());
+			new_wall->setWidth((*wall)->getWidth());
+			new_wall->setHeight((*wall)->getHeight());
+			new_wall->setRectSides((*wall)->getRectSidesVector());
+			wallInvList.push_back(new_wall);
+			wall++;
+		}
+		//wallInvList = wallList;
 
-	// Compute panels needed for given wall layout
+	// Compute panels needed for given wall layout. This is the wishlist.
 		printAvailablePanels();
-		computeNumPanelsBestFit();
+		computeNumPanelsBestFit(wallList, panelList);
 		//mergeRepetitivePanels();
-
-	// Write data to output file
-		writeToFile(outputFileName, imageName);
-
-	// Print Walls and panels
 		printWallList();
+
+	// Compute panels needed for given wall layout. This is the inventory-based list.
+		printInventoryPanels();
+		computeNumPanelsBestFit(wallInvList, panelInvList, true);
+		
+	// Write data to output file
+		writeToFile(wishListFileName, ".wishList", imageName, wallList);
+		writeToFile(inventoryListFileName, ".inventoryList", imageName, wallInvList);
+
+	// Print Walls
+		printWallInventoryList();
 	}
 
 // Get data collected by Processor
@@ -416,11 +460,34 @@ public:
 		std::cout << "|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n";
 	}
 
+	void printInventoryPanels() {
+		std::cout << "||||||||||||||| PRINTING INVENTORY PANELS |||||||||||||||||\n";
+		std::vector<PanelInfo>::iterator it = panelInvList.begin();
+		while(it != panelInvList.end()) {
+			std::cout << "+++++++++++++ PRINTING PANEL INFO ++++++++++++++\n";
+			std::cout << "Panel Width: " << (*it).width << "\n";
+			std::cout << "Panel Height: " << (*it).height << "\n";
+			std::cout << "++++++++++++++++++++++++++++++++++++++++++++++++\n";
+			it++;
+		}
+		std::cout << "|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||\n";
+	}	
+	
 // Print wall list
 	void printWallList() {
 		std::cout << "=================== PRINTING WALL LIST ===================\n";
 		std::vector<Wall *>::iterator it = wallList.begin();
 		while(it != wallList.end()) {
+			(*it)->printWallInfo();
+			it++;
+		}
+		std::cout << "==========================================================\n";
+	}
+	
+	void printWallInventoryList() {
+		std::cout << "=================== PRINTING WALL INVENTORY LIST ===================\n";
+		std::vector<Wall *>::iterator it = wallInvList.begin();
+		while(it != wallInvList.end()) {
 			(*it)->printWallInfo();
 			it++;
 		}
@@ -445,12 +512,12 @@ private:
 	}
 	
 	void readOutputFile(const std::string &outputFileName, bool cornerSelection) {
-		std::cout << "OUTPUT FILE NAME: " << outputFileName << "\n";
+		//std::cout << "OUTPUT FILE NAME: " << outputFileName << "\n";
 	// Open the output file and read it
 		std::ifstream outfile(outputFileName);
 		std::string line;
 		while(std::getline(outfile, line)) {
-			std::cout << "LINE: " << line << "\n";
+			//std::cout << "LINE: " << line << "\n";
 			size_t index = 2;
 			
 		// Allocate a wall
@@ -459,9 +526,9 @@ private:
 			uint8_t sat = (uint8_t)getNumber(',', index, line);
 			index += 2;
 			uint8_t val = (uint8_t)getNumber(')', index, line);
-			printf("HUE: %d\n", hue);
-			printf("SAT: %d\n", sat);
-			printf("VAL: %d\n", val);
+			//printf("HUE: %d\n", hue);
+			//printf("SAT: %d\n", sat);
+			//printf("VAL: %d\n", val);
 			//std::cout << "HUE: " << hue << "\n";
 			//std::cout << "SAT: " << sat << "\n";
 			//std::cout << "VAL: " << val << "\n";
@@ -472,36 +539,36 @@ private:
 			double x1 = getNumber(',', index, line);
 			index += 2;
 			double y1 = getNumber(')', index, line);
-			printf("x1: %lf\n", x1);
-			printf("y1: %lf\n", y1);
+			//printf("x1: %lf\n", x1);
+			//printf("y1: %lf\n", y1);
 			index += 5;
 			double x2 = getNumber(',', index, line);
 			index += 2;
 			double y2 = getNumber(')', index, line);
-			printf("x2: %lf\n", x2);
-			printf("y2: %lf\n", y2);
+			//printf("x2: %lf\n", x2);
+			//printf("y2: %lf\n", y2);
 			if(!cornerSelection) {
 			// If the corners are not selected, then there must be 2 more vertices left	
 				index += 5;
 				double x3 = getNumber(',', index, line);
 				index += 2;
 				double y3 = getNumber(')', index, line);
-				printf("x3: %lf\n", x3);
-				printf("y3: %lf\n", y3);
+				//printf("x3: %lf\n", x3);
+				//printf("y3: %lf\n", y3);
 				index += 5;
 				double x4 = getNumber(',', index, line);
 				index += 2;
 				double y4 = getNumber(')', index, line);
-				printf("x4: %lf\n", x4);
-				printf("y4: %lf\n", y4);
+				//printf("x4: %lf\n", x4);
+				//printf("y4: %lf\n", y4);
 				
 			// Find the sides of the walls. 2 must be sides and 1 must be the diagonal
 				double length1 = euclideanDistance(x1, y1, x2, y2);
-				std::cout << "LENGTH1: " << length1 << "\n";
+				//std::cout << "LENGTH1: " << length1 << "\n";
 				double length2 = euclideanDistance(x1, y1, x3, y3);
-				std::cout << "LENGTH2: " << length2 << "\n";
+				//std::cout << "LENGTH2: " << length2 << "\n";
 				double length3 = euclideanDistance(x1, y1, x4, y4);
-				std::cout << "LENGTH3: " << length3 << "\n";
+				//std::cout << "LENGTH3: " << length3 << "\n";
 				if(length1 > length2 && length1 > length3) {
 				// Length1 is a diagonal
 					wall->setRectSides(length2, length3);
@@ -519,21 +586,20 @@ private:
 				double length = euclideanDistance(x1, y1, x2, y2);
 				wall->setRectSide(length);
 			}
-			
 			wallList.push_back(wall);
 		}
 	}
 	
 	double getNumber(char stopChar, size_t &index, const std::string line) const {
-		std::cout << "INDEX: " << index << "\n";
-		std::cout << "START LINE CHAR: " << line[index] << "\n";
+		//std::cout << "INDEX: " << index << "\n";
+		//std::cout << "START LINE CHAR: " << line[index] << "\n";
 		char number[1024] = {0};
 		int i= 0;
 		while(line[index] != stopChar) {
-			std::cout << line[index] << " ";
+			//std::cout << line[index] << " ";
 			number[i++] = line[index++];
 		}
-		std::cout << "\n";
+		//std::cout << "\n";
 		return atof(number);
 	}
 	
@@ -543,12 +609,19 @@ private:
 		return sqrt(sq_diff_x + sq_diff_y);
 	}
 	
-	void addPanel(double width, double height = 0) {
+	void addPanel(std::vector<PanelInfo> &panel_list, double width, double height = 0) {
 		PanelInfo panel(width, height);
-		panelList.push_back(panel);
+		panel_list.push_back(panel);
+	}
+	
+	void addPanel(std::vector<PanelInfo> &panel_list, uint32_t numPanels,
+				  double width, double height = 0) {
+		PanelInfo panel(numPanels, width, height);
+		panel_list.push_back(panel);
 	}
 
-	void getPanels(const std::string panelListFileName) {
+	void getPanels(std::vector<PanelInfo> &panels, const std::string &panelListFileName,
+												   bool considerPanelCount = false) {
 	// Check if the panelListFileName is not valid
 		if(panelListFileName.empty()) {
 			std::cout << "Panel List File Invalid\n";
@@ -578,71 +651,216 @@ private:
 		std::ifstream infile(panelListFileName);
 		std::string line;
 		uint32_t numCommas = 0;
+		uint32_t numCommas_qty = 0;
 		bool columnFound = false;
 		while(std::getline(infile, line)) {
-			if(columnFound == true) {
+			//std::cout << "LINE: " << line << "\n";
+			if(columnFound == true) {	
+				std::cout << "NUM COMMAS: " << numCommas << "\n";
+				if(line.empty())
+					continue;
+
 			// Read the line to get the panel width
-				std::stringstream stream(line);
+				std::string res_line = line;
 				double panelWidth = 0;
 				uint32_t col = 0;	
-				while(col++ <= numCommas) {
-					stream >> panelWidth;
-					std::cout << "READ PANEL WIDTH: " << panelWidth << "\n";
+				bool skipLine = false;
+				while(col < numCommas) {
+					std::cout << "RES LINE: " << res_line << "\n";
+					size_t pos = res_line.find(",");
+					if(pos == std::string::npos) {
+					// No more commas
+						skipLine = true;
+						break;
+					}
+					res_line = res_line.substr(pos + 1);
+					col++;
 				}
-					
-			// Add panel to the panel list	
-				addPanel(panelWidth);
+				if(skipLine == true)
+					continue;
+				
+			// Now get the panel width. If there is an invalid character between this
+			// comma and the comma before that, just quit.
+				std::cout << "--RES LINE: " << res_line << "\n";
+				//std::cout << "col: " << col << "\n";
+				std::string res_string;
+				//if(!col)
+				res_string = res_line.substr(0);
+				//else
+					//res_string = line.substr(col + 1);
+				//std::cout << "RES STRING: " << res_string << "\n";
+				if(res_string.empty())
+					continue;
+				for(char c : res_string) {
+					if(c < 48 || c > 57) {
+					// If it is a '.' or a space, continue.	
+						if(c == '.' || c == ' ' || c == '\r')
+							continue;
+
+					// If it is a ',' or a newline, stop.
+						if(c == ',' || c == '\n')
+							break;
+						
+					// Else, it is an invalid character. Quit.
+						std::cout << "CHARACTER: .." << (int)c << "..\n";
+						return;
+					}
+				}
+				std::stringstream stream(res_line);
+				stream >> panelWidth;
+				//std::cout << "READ PANEL WIDTH: " << panelWidth << "\n";
+				
+				if(panelWidth) {
+				// Get the number of panels available in the inventory
+					if(considerPanelCount) {
+						res_line = line;
+						uint32_t qty_col = 0;	
+						bool skipLine = false;
+						uint32_t numPanels = 0;
+						while(qty_col < numCommas_qty) {
+							std::cout << "RES LINE: " << res_line << "\n";
+							size_t pos = res_line.find(",");
+							if(pos == std::string::npos) {
+							// No more commas
+								skipLine = true;
+								break;
+							}
+							res_line = res_line.substr(pos + 1);
+							qty_col++;
+						}
+						if(skipLine == true) {
+						// Add panel to the panel list	
+							addPanel(panels, panelWidth);
+							continue;
+						}
+						std::string res_string;
+						//if(!col)
+						res_string = res_line.substr(0);
+						//else
+							//res_string = line.substr(col + 1);
+						//std::cout << "RES STRING: " << res_string << "\n";
+						if(res_string.empty())
+							continue;
+						for(char c : res_string) {
+							if(c < 48 || c > 57) {
+							// If it is a '.' or a space, continue.	
+								if(c == ' ' || c == '\r')
+									continue;
+
+							// If it is a ',' or a newline, stop.
+								if(c == ',' || c == '\n')
+									break;
+								
+							// Else, it is an invalid character. Add panel to the panel list	
+								std::cout << "CHARACTER: .." << (int)c << "..\n";
+								addPanel(panels, panelWidth);
+								goto next_line;
+							}
+						}
+						std::stringstream stream(res_line);
+						stream >> numPanels;
+						std::cout << "NUMBER OF QTY COMMAS: " << numCommas_qty << "\n";
+						std::cout << "PANELS QTY: " << numPanels << "\n";
+						
+					// Add panel to the panel list	
+						addPanel(panels, numPanels, panelWidth);
+					} else {
+					// Add panel to the panel list	
+						addPanel(panels, panelWidth);
+					}
+				}
+			next_line:
 				continue;
 			}
 			
 		// Search for "Panel Width", "PanelWidth", "Panel width", "panel width", 
 		// "PANEL WIDTH", "PANEL_WIDTH", "panelWidth", or "panel_width". 
 		// Once found -- if found, we count the number of commas precede the string.
-			size_t pos = line.find("Panel Width");
+			size_t pos = line.find("Width");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
+				columnFound = true;
+				continue;
+			}
+			pos = line.find("width");
+			if(pos != std::string::npos) {
+				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
+				columnFound = true;
+				continue;
+			}
+			pos = line.find("WIDTH");
+			if(pos != std::string::npos) {
+				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
+				columnFound = true;
+				continue;
+			}
+			pos = line.find("Panel Width");
+			if(pos != std::string::npos) {
+				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("PanelWidth");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("Panel width");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("panel width");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("PANEL WIDTH");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("PANEL_WIDTH");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("panel_width");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
 			pos = line.find("panelWidth");
 			if(pos != std::string::npos) {
 				numCommas = numCharBeforePos(',', pos, line);
+				if(considerPanelCount)
+					numCommas_qty = panelQtyColNum(line);
 				columnFound = true;
 				continue;
 			}
@@ -652,6 +870,46 @@ private:
 					  << "column not named as expected.\n";
 			exit(-1);
 		}
+	}
+	
+	uint32_t panelQtyColNum(const std::string &line) const {
+		size_t pos = line.find("QTY");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("Panel Qty");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("Panel Num");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("PanelNum");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("NumPanels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("# of Panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("# of panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("# Panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("# panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("Number of Panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("Number of panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		pos = line.find("number of panels");
+		if(pos != std::string::npos)
+			return numCharBeforePos(',', pos, line);
+		return 0;
 	}
 	
 	uint32_t numCharBeforePos(char search_char, size_t stop_pos, 
@@ -676,8 +934,7 @@ private:
 		return wall;
 	}
 
-	Wall *allocateWall(double length = 0, double width = 0,
-												double height = 0) {
+	Wall *allocateWall(double length = 0, double width = 0, double height = 0) {
 		Wall *wall = new Wall(length, width, height);
 		if(!wall) {
 			std::cout << "Error in allocating wall.\n";
@@ -694,11 +951,38 @@ private:
 		}
 		return panel;
 	}
-
-	void computeNumPanelsBestFit() {
+	
+	void reducePanelCount(std::vector<PanelInfo> &panels, 
+						  double panelWidth, uint32_t panelCount) const {
+		uint32_t index = 0;
+		while(index != panels.size()) {
+			if(panels[index].width == panelWidth) {
+				panels[index].numPanels -= panelCount;
+				return;
+			}
+			index++;
+		}
+	}
+	
+	bool numPanelsInBounds(const std::vector<PanelInfo> &panels, 
+			   	   	   	   double panelWidth, uint32_t panelCount) const {
+		uint32_t index = 0;
+		while(index != panels.size()) {
+			if(panels[index].width == panelWidth) {
+				if(panels[index].numPanels >= panelCount)
+					return true;
+			}
+			index++;
+		}
+		return false;
+	}
+	
+	void computeNumPanelsBestFit(std::vector<Wall *> &walls,
+								 std::vector<PanelInfo> &panels,
+								 bool considerPanelCount = false) {
 	// Iterate over the wall list and compute the number of panels needed
-		std::vector<Wall *>::iterator wall = wallList.begin();
-		while(wall != wallList.end()) {
+		std::vector<Wall *>::iterator wall = walls.begin();
+		while(wall != walls.end()) {
 		// Check if any panel type fits perfectly with the half wall of given length.
 		// If not, we keep track of error and panel width the lowest leftover wall
 		// space to get the "best" panel. Put half panels in vector too.
@@ -708,9 +992,10 @@ private:
 			double extraSpace = wallLength;
 			double smallerExtraSpace;
 			int zeroSpaceFitFound = -1;
-			std::vector<PanelInfo> panelVect = panelList;
-			std::vector<PanelInfo>::iterator panel = panelList.begin();
-			while(panel != panelList.end()) {
+			std::vector<PanelInfo> availablePanels = panels;
+			std::vector<PanelInfo> panelVect = availablePanels;
+			std::vector<PanelInfo>::iterator panel = availablePanels.begin();
+			while(panel != availablePanels.end()) {
 				PanelInfo temp_panel(((*panel).width / 2));
 				panelVect.push_back(temp_panel);
 				panel++;
@@ -732,14 +1017,24 @@ private:
 					// Perfect match found! Allocate panel. But before that, check if
 					// its a half panel.
 						zeroSpaceFitFound = 1;
-						std::vector<PanelInfo>::iterator temp_panel = panelList.begin();
-						while(temp_panel != panelList.end()) {
+						std::vector<PanelInfo>::iterator temp_panel = availablePanels.begin();
+						while(temp_panel != availablePanels.end()) {
 							if(panelWidth == (*temp_panel).width) {
-								Panel *panel = allocatePanel(panelWidth);
 								numPanels = 2 * (wallLength / panelWidth);
-								(*wall)->addBestFitPanel(panel, numPanels);
-								std::cout << "NUM PANELS: " << numPanels << "\n";
-								headPanelList.push_back(panel);
+								if(!considerPanelCount) {
+									Panel *panel = allocatePanel(panelWidth);
+									(*wall)->addBestFitPanel(panel, numPanels);
+									std::cout << "NUM PANELS: " << numPanels << "\n";
+									headPanelList.push_back(panel);
+								} else {
+									if(numPanels <= (*temp_panel).numPanels) {
+										Panel *panel = allocatePanel(panelWidth);
+										(*wall)->addBestFitPanel(panel, numPanels);
+										reducePanelCount(availablePanels, panelWidth, numPanels);
+										std::cout << "NUM PANELS: " << numPanels << "\n";
+										headPanelList.push_back(panel);
+									}
+								}
 								goto next_panel;
 							}
 							temp_panel++;
@@ -754,15 +1049,24 @@ private:
 								goto next_panel;
 							it++;
 						}
-						Panel *panel = allocatePanel(panelWidth);
 						numPanels = ((uint32_t)(2 * (wallLength / panelWidth)) - 1) + 1;
-						(*wall)->addBestFitPanel(panel, numPanels);
-						std::cout << "NUM PANELS: " << numPanels << "\n";
+						if(!considerPanelCount) {
+							Panel *panel = allocatePanel(panelWidth);
+							(*wall)->addBestFitPanel(panel, numPanels);
+							std::cout << "NUM PANELS: " << numPanels << "\n";
+						} else {
+							if(numPanelsInBounds(availablePanels, panelWidth, numPanels)) {
+								Panel *panel = allocatePanel(panelWidth);
+								(*wall)->addBestFitPanel(panel, numPanels);
+								reducePanelCount(availablePanels, panelWidth, numPanels);
+								std::cout << "NUM PANELS: " << numPanels << "\n";
+							}
+						}
 						goto next_panel;
 					}
 					//std::cout << "BUGGER\n";
-					std::vector<PanelInfo>::iterator temp_panel = panelList.begin();
-					while(temp_panel != panelList.end()) {
+					std::vector<PanelInfo>::iterator temp_panel = availablePanels.begin();
+					while(temp_panel != availablePanels.end()) {
 						if(panelWidth == (*temp_panel).width) {
 						// Get the lowest space left over
 							std::cout << "EXTRA SPACE: " << extraSpace << "\n";
@@ -814,15 +1118,29 @@ private:
 			if(!zeroSpaceFitFound && !panelsAdded.empty()) {
 				std::vector<std::vector<double>>::iterator it = panelsAdded.begin();
 				while(it != panelsAdded.end()) {
-					Panel *panel = allocatePanel((*it)[1]);
 					uint32_t numPanels = 2 * (uint32_t)(wallLength / (*it)[1]);
-					(*wall)->addBestFitPanel(panel, numPanels);
-					std::cout << "zPANEL WIDTH: " <<  (*it)[1] << "\n";
-					std::cout << "zNUM PANELS: " << numPanels << "\n";
+					if(!considerPanelCount) {
+						Panel *panel = allocatePanel((*it)[1]);
+						(*wall)->addBestFitPanel(panel, numPanels);
+						std::cout << "zPANEL WIDTH: " <<  (*it)[1] << "\n";
+						std::cout << "zNUM PANELS: " << numPanels << "\n";
 					//extraSpace = wallLength - ((uint32_t)(wallLength / (*it)[1]) * (*it)[1]);
 
-				// Since this is a head panel, we add this to the head panel list
-					headPanelList.push_back(panel);
+					// Since this is a head panel, we add this to the head panel list
+						headPanelList.push_back(panel);
+					} else {
+						if(numPanelsInBounds(availablePanels, (*it)[1], numPanels)) {
+							Panel *panel = allocatePanel((*it)[1]);
+							(*wall)->addBestFitPanel(panel, numPanels);
+							reducePanelCount(availablePanels, (*it)[1], numPanels);
+							std::cout << "zPANEL WIDTH: " <<  (*it)[1] << "\n";
+							std::cout << "zNUM PANELS: " << numPanels << "\n";
+						//extraSpace = wallLength - ((uint32_t)(wallLength / (*it)[1]) * (*it)[1]);
+	
+						// Since this is a head panel, we add this to the head panel list
+							headPanelList.push_back(panel);
+						}
+					}
 					it++;
 				}
 			} else {
@@ -849,14 +1167,24 @@ private:
 					// Perfect match found! Allocate panel. But before that, check if
 					// its a half panel.
 						zeroSpaceFitFound = 1;
-						std::vector<PanelInfo>::iterator temp_panel = panelList.begin();
-						while(temp_panel != panelList.end()) {
+						std::vector<PanelInfo>::iterator temp_panel = availablePanels.begin();
+						while(temp_panel != availablePanels.end()) {
 							if(panelWidth == (*temp_panel).width) {
-								Panel *panel = allocatePanel(panelWidth);
 								numPanels = 2 * (extraSpace / panelWidth);
-								(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
-								std::cout << "--NUM PANELS: " << numPanels << "\n";
-								perfectFitPanelList.push_back(panel);
+								if(!considerPanelCount) {
+									Panel *panel = allocatePanel(panelWidth);
+									(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+									std::cout << "--NUM PANELS: " << numPanels << "\n";
+									perfectFitPanelList.push_back(panel);
+								} else {
+									if((*temp_panel).numPanels >= numPanels) {
+										Panel *panel = allocatePanel(panelWidth);
+										(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+										reducePanelCount(availablePanels, panelWidth, numPanels);
+										std::cout << "--NUM PANELS: " << numPanels << "\n";
+										perfectFitPanelList.push_back(panel);
+									}
+								}
 								goto next_panel2;
 							}
 							temp_panel++;
@@ -868,10 +1196,19 @@ private:
 								goto next_panel2;
 							it++;
 						}
-						Panel *panel = allocatePanel(panelWidth);
 						numPanels = ((uint32_t)(2 * (wallLength / panelWidth)) - 1) + 1;
-						(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
-						std::cout << "--NUM PANELS: " << numPanels << "\n";
+						if(!considerPanelCount) {
+							Panel *panel = allocatePanel(panelWidth);
+							(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+							std::cout << "--NUM PANELS: " << numPanels << "\n";
+						} else {
+							if(numPanelsInBounds(availablePanels, panelWidth, numPanels)) {
+								Panel *panel = allocatePanel(panelWidth);
+								(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+								reducePanelCount(availablePanels, panelWidth, numPanels);
+								std::cout << "--NUM PANELS: " << numPanels << "\n";
+							}
+						}
 						goto next_panel2;
 					}
 
@@ -917,8 +1254,8 @@ private:
 					uint32_t numPanels;
 
 				// Check if it is half panel
-					std::vector<PanelInfo>::iterator panel_it = panelList.begin();
-					while(panel_it != panelList.end()) {
+					std::vector<PanelInfo>::iterator panel_it = availablePanels.begin();
+					while(panel_it != availablePanels.end()) {
 						if(panel_it->width == panelWidth) {
 							numPanels = 2 * (uint32_t)(extraSpace / panelWidth);
 							goto allocate_panel;
@@ -929,10 +1266,20 @@ private:
 					numPanels = ((uint32_t)(2 * (extraSpace / panelWidth)) - 1) + 1;
 
 				allocate_panel:
-					Panel *panel = allocatePanel(panelWidth);
-					(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
-					std::cout << "--zPANEL WIDTH: " <<  (*it)[1] << "\n";
-					std::cout << "--zNUM PANELS: " << numPanels << "\n";
+					if(!considerPanelCount) {
+						Panel *panel = allocatePanel(panelWidth);
+						(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+						std::cout << "--zPANEL WIDTH: " <<  (*it)[1] << "\n";
+						std::cout << "--zNUM PANELS: " << numPanels << "\n";
+					} else {
+						if(numPanelsInBounds(availablePanels, panelWidth, numPanels)) {
+							Panel *panel = allocatePanel(panelWidth);
+							(*wall)->addBestFitPanel(panel, headPanelList, numPanels);
+							reducePanelCount(availablePanels, panelWidth, numPanels);
+							std::cout << "--zPANEL WIDTH: " <<  (*it)[1] << "\n";
+							std::cout << "--zNUM PANELS: " << numPanels << "\n";
+						}
+					}
 					it++;
 				}
 			}
@@ -1020,7 +1367,9 @@ private:
 
 // Write all the collected data to a file
 	void writeToFile(const std::string &outputFileName,
-									 const std::string &imageName) {
+					 const std::string &appendToName,
+					 const std::string &imageName,
+					 std::vector<Wall *> &walls) {
 	// If the output file name has not be given, we use the image name to make
 	// output file name.
 		std::string output;
@@ -1029,6 +1378,7 @@ private:
 
 			std::cout << "TRUNCATED OUPUT FILE NAME: " << output << "\n";
 		// Append new extension
+			output.append(appendToName);
 			output.append(".csv");
 		} else {
 			output = outputFileName;
@@ -1039,8 +1389,8 @@ private:
 		outputFile.open(output);
 		outputFile << "Wall Length (ft),Wall Width (ft),Wall Height (ft),"
 						"Panel Width (ft),Number of Panels" << std::endl;
-		std::vector<Wall *>::iterator wall = wallList.begin();
-		while(wall != wallList.end()) {
+		std::vector<Wall *>::iterator wall = walls.begin();
+		while(wall != walls.end()) {
 		// Write wall dimensions
 			std::ostringstream strs;
 			std::string str;
@@ -1117,18 +1467,16 @@ private:
 	}
 	
 // Merge necessary panels for the walls in the wall list
+// FIXME: Buggy function
 	void mergeRepetitivePanels() {
 		std::vector<Wall *>::iterator wall = wallList.begin();
 		while(wall != wallList.end()) {
 			(*wall)->mergePanelsInPanelLists();
 			wall++;
 		}
-	}	
-
-// This class is not abstract
-	void abstractImage() const {}
+	}
 };
 
 } // namespace Panelization
 
-#endif  // PANELIZE__H__
+#endif
